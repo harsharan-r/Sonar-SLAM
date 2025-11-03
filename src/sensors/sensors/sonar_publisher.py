@@ -12,12 +12,14 @@ from std_msgs.msg import String
 from sensor_msgs.msg import PointCloud, ChannelFloat32
 from geometry_msgs.msg import Point32
 
-from sensors.ultrasonic import Ultrasonic
-from sensors.stepper_motor import StepperMotor
+from sensors.sensor_drivers.ultrasonic import Ultrasonic
+from sensors.sensor_drivers.stepper_motor import StepperMotor
+
+ULTRASONIC_SEN_OFFSET = 0.3745
 
 class SonarPublisher(Node):
 
-    def __init__(self):
+    def __init__(self, ultrasonic_sen_offset):
         super().__init__('sonar_publisher')
         self.points_publisher_ = self.create_publisher(PointCloud, '/occupancy_data', 10)
 
@@ -29,6 +31,7 @@ class SonarPublisher(Node):
         self.inline_sen = Ultrasonic(27,22)
         self.perp_sen = Ultrasonic(26,19)
         self.dist_array = []
+        self.ultrasonic_sen_offset = ultrasonic_sen_offset
 
         # Stepper motor
         self.motor = StepperMotor(21, 20, 16, 12)
@@ -84,8 +87,8 @@ class SonarPublisher(Node):
             self.motor_sweep_thread.start()
 
         # Record ultrasonic data
-        self.dist_array.append([self.motor.position, self.inline_sen.filtered_distance()])
-        self.dist_array.append([self.motor.position+90, self.perp_sen.filtered_distance()])
+        self.dist_array.append([self.motor.position, self.inline_sen.filtered_distance() + self.ULTRASONIC_SEN_OFFSET])
+        self.dist_array.append([self.motor.position+90, self.perp_sen.filtered_distance() + self.ULTRASONIC_SEN_OFFSET])
 
         if self.record_event.is_set():
             
@@ -131,8 +134,10 @@ class SonarPublisher(Node):
 
 def main(args=None):
 
+    
+
     rclpy.init(args=args)
-    sonar_publisher = SonarPublisher()
+    sonar_publisher = SonarPublisher(ULTRASONIC_SEN_OFFSET)
 
     try:
         rclpy.spin(sonar_publisher)
@@ -145,4 +150,5 @@ def main(args=None):
         
     finally: 
             GPIO.cleanup()
+
 
