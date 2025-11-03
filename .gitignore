@@ -1,3 +1,6 @@
 .env
 .venv
 __*
+build
+install
+log
