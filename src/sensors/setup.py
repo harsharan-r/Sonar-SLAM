@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'sonar_publisher = sensors.sonar_publisher:main',
+            'imu_publisher = sensors.imu_publisher:main',
         ],
     },
 )
