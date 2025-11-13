@@ -87,8 +87,8 @@ class SonarPublisher(Node):
             self.motor_sweep_thread.start()
 
         # Record ultrasonic data
-        self.dist_array.append([self.motor.position, self.inline_sen.filtered_distance() + self.ULTRASONIC_SEN_OFFSET])
-        self.dist_array.append([self.motor.position+90, self.perp_sen.filtered_distance() + self.ULTRASONIC_SEN_OFFSET])
+        self.dist_array.append([self.motor.position, self.inline_sen.filtered_distance() + self.ultrasonic_sen_offset])
+        self.dist_array.append([self.motor.position+90, self.perp_sen.filtered_distance() + self.ultrasonic_sen_offset])
 
         if self.record_event.is_set():
             
@@ -120,7 +120,7 @@ class SonarPublisher(Node):
         # Publisher message
         msg = PointCloud()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "sonar"
+        msg.header.frame_id = "sonar_link"
 
         # Convert from polar to cartesian points
         msg.points = [
