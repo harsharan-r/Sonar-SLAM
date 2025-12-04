@@ -46,6 +46,11 @@ RUN pip install matplotlib smbus2
 RUN apt-get update && apt-get install -y \
     ros-humble-foxglove-bridge
 
+# Install custom fonts
+RUN mkdir -p /root/.fonts
+COPY figures/fonts/source_code_pro/*.ttf /root/.fonts/
+RUN fc-cache -fv
+
 # Set working directory
 WORKDIR /src
 
