@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install custom fonts
 RUN mkdir -p /root/.fonts
-COPY figures/fonts/source_code_pro/*.ttf /root/.fonts/
+COPY assets/figures/fonts/source_code_pro/*.ttf /root/.fonts/
 RUN fc-cache -fv
 
 # Set working directory
