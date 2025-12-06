@@ -114,21 +114,21 @@ Yaw estimation used only the gyroscope’s angular velocity, which contained noi
 
 Stationary Values(Angular velocity and yaw graphs):
 
-<img src="assets/figures/stationary_filter_gz_500.png" alt="Stationary Velocity Values" width="45%"/>
-<img src="assets/figures/stationary_filter_yaw_500.png" alt="Staitionary Yaw Values" width="45%"/>
+<img src="assets/figures/stationary_filter_gz_500.png" alt="Stationary Velocity Values" width="45%" style="display:inline-block"/>
+<img src="assets/figures/stationary_filter_yaw_500.png" alt="Staitionary Yaw Values" width="45%" style="display:inline-block"/>
 
  **Note:** The ZVU is responsible for zeroing out noise during stationary periods, as shown above.
 
 To evaluate the impact of filtering, the device was aligned to a paper template at multiple angles.
 
-<img src="assets/figures/filter_gz_0_90.png" alt="Multiple Angle Velocity Values" width="45%"/>
-<img src="assets/figures/filter_yaw_0_90.png" alt="Multiple Angle Yaw Values" width="45%"/>
+<img src="assets/figures/filter_gz_0_90.png" alt="Multiple Angle Velocity Values" width="45%" style="display:inline-block"/>
+<img src="assets/figures/filter_yaw_0_90.png" alt="Multiple Angle Yaw Values" width="45%" style="display:inline-block"/>
 
  **Note:** The EMA filter works to reduce extreme values as shown in the left graph above, and the ZVU eliminates drift as shown in the right graph above.
 
 To evaluate accuracy, the device was rotated through three angles (30°, 60°, 90°) and then returned to 0° in reverse order to assess performance over time.
 
-<img src="assets/figures/filter_gz_0_90_30.png" alt="Multiple Angle Velocity Values" width="45%"/>
-<img src="assets/figures/filter_yaw0_90_30.png" alt="Multiple AngleYaw Values" width="45%"/>
+<img src="assets/figures/filter_gz_0_90_30.png" alt="Multiple Angle Velocity Values" width="45%" style="display:inline-block"/>
+<img src="assets/figures/filter_yaw0_90_30.png" alt="Multiple AngleYaw Values" width="45%" style="display:inline-block"/>
 
  **Note:** After testing, the device maintained a consistent reading within one degree at each angle as shown in the top right graph.
