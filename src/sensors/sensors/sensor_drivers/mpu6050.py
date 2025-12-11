@@ -4,7 +4,7 @@ MPU-6050 I2C Driver for Raspberry Pi
 
 This module handles communication over I2C between a Raspberry Pi
 and the MPU-6050 gyroscope/accelerometer sensor. Some code is adapted
-from the original Python library by Martijn (2015-2021), with modifications
+from the original Python library by Martijn, with modifications
 to fit this project's specific use case.
 
 Original Library:
@@ -98,6 +98,10 @@ class MPU:
     y_gyro_offset = 0
     z_gyro_offset = 0
 
+    # Locally saved configs set to default value
+    accel_range = 2
+    accel_config = 250
+
 
     def __init__(self, address, bus=1):
         self.address = address
@@ -168,7 +172,7 @@ class MPU:
 
         # Read high and low bytes
         high = self.bus.read_byte_data(self.address, register)
-        low = self.bus.read_byte_data(self.address, register)
+        low = self.bus.read_byte_data(self.address, register + 1)
 
         # Shift high pin 8 bytes left and then add the low bytes
         value = (high << 8) + low
@@ -184,7 +188,7 @@ class MPU:
         set z axis to gravitational constant
         """
         accel_values = self.get_accel_data(g=True)
-    
+
         self.x_accel_offset = -accel_values['x']
         self.y_accel_offset = -accel_values['y']
         self.z_accel_offset = -1-accel_values['z']
@@ -212,6 +216,9 @@ class MPU:
         accel_config = self.read_accel_range(raw=True)
         if not self.ACCEL_PARAM[a_range]['range'] == accel_config:     
             print(f"ERROR: config was not assigned correctly, current config: {hex(accel_config)}")
+
+        # Save local config 
+        self.accel_range = a_range
            
         
     def read_accel_range(self, raw=False):
@@ -219,7 +226,7 @@ class MPU:
         Reads the accel range sensor is set to 
 
         Parameter:
-            raw (bool, default: False): set true for raw register value and false for the accel in g
+            raw (bool, d efault: False): set true for raw register value and false for the accel in g
 
         Returns:
             int (raw = True): a value from [2,4,8,16] or -1 if something went wrong
@@ -228,7 +235,7 @@ class MPU:
                 
         
         accel_range = self.bus.read_byte_data(self.address, self.ACCEL_CONFIG)
-        
+
         if not raw:
             if accel_range == self.ACCEL_PARAM[2]['range']:
                 return 2
@@ -239,11 +246,12 @@ class MPU:
             elif accel_range == self.ACCEL_PARAM[16]['range']:
                 return 16
             else:
-                return -1
+                print(f"Error reading accel range from i2c used local config of accel range: {self.accel_range} G")
+                return self.accel_range
 
         return accel_range
-    
-    def get_accel_data(self, g=False, calibrate=False):
+        
+    def get_accel_data(self, cache=False, g=False, calibrate=False):
         """
         Reads and returns x, y and z acceleration values
 
@@ -255,7 +263,7 @@ class MPU:
             dict: measurement results with keys x, y and z
         """
 
-        accel_range = self.read_accel_range()
+        accel_range = self.accel_range if cache else self.read_accel_range()
 
         x = self.read_i2c_pair(self.ACCEL_XOUT_HIGH) / self.ACCEL_PARAM[accel_range]['modifier']
         y = self.read_i2c_pair(self.ACCEL_YOUT_HIGH) / self.ACCEL_PARAM[accel_range]['modifier']
@@ -308,6 +316,8 @@ class MPU:
         gyro_config = self.read_gyro_range(raw=True)
         if not self.GYRO_PARAM[g_range]['range'] == gyro_config:         
             print(f"ERROR: config was not assigned correctly, current config: {hex(gyro_config)}")
+        
+        self.gyro_range = g_range
 
     def read_gyro_range(self, raw=False):
         """
@@ -317,11 +327,10 @@ class MPU:
             raw (bool, default: False): set true for raw register value and false for sensitivity in deg/s
 
         Returns:
-            int (raw = True): a value from [250,500,1000,2000] or -1 if something went wrong
+            int (raw = True): a value from [250,500,1000,2000] or saved_config if something went wrong
             int (raw = False): returns the int value of raw value of the accel_config register
         """
                 
-        
         gyro_range = self.bus.read_byte_data(self.address, self.GYRO_CONFIG)
         
         if not raw:
@@ -334,11 +343,13 @@ class MPU:
             elif gyro_range == self.GYRO_PARAM[2000]['range']:
                 return 2000
             else:
-                return -1
-
+                print(f"Error reading gyro range from i2c used local config of gyro range: {self.gyro_range} degrees")
+                return self.gyro_range
+            
         return gyro_range
 
-    def get_gyro_data(self, calibrate=False):
+
+    def get_gyro_data(self, cache=False, calibrate=False):
         """
         Reads and returns x, y and z gyro values
 
@@ -346,7 +357,7 @@ class MPU:
             dict: measurement results with keys x, y and z
         """
 
-        gyro_range = self.read_gyro_range()
+        gyro_range = self.gyro_range if cache else self.read_gyro_range()
 
         x = self.read_i2c_pair(self.GYRO_XOUT_HIGH) / self.GYRO_PARAM[gyro_range]['modifier']
         y = self.read_i2c_pair(self.GYRO_YOUT_HIGH) / self.GYRO_PARAM[gyro_range]['modifier']
@@ -361,22 +372,19 @@ class MPU:
                 
         return gyro_values
 
-
-
 if __name__ == "__main__":
     imu = MPU(0x68)
     
-    # imu.reset()
-
+    imu.reset()
     time.sleep(2)
 
-    imu.set_accel_range(16)
+    imu.set_accel_range(8)
+    imu.set_gyro_range(250)
+
     imu.calibrate_accel()
     imu.calibrate_gyro()
 
-    imu.set_accel_range(2)
-    imu.set_gyro_range(250)
-
+    time.sleep(8)
     ## --- Get and Print Orientation --- ##
 
     previous_yaw = 0
