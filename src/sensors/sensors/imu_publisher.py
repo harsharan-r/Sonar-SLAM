@@ -9,16 +9,16 @@ from sensor_msgs.msg import Imu
 
 from sensors.sensor_drivers.mpu6050 import MPU
 
-import matplotlib.pyplot as plt
 import os
 
+DEG_RAD_CONV_FACTOR = math.pi/180
 
 class IMUPublisher(Node):
 
     def __init__(self):
         super().__init__('imu_publisher')
         self.imu_publisher_ = self.create_publisher(Imu, 'imu/data', 10)
-        self.timer = self.create_timer(0.1, self.publish_imu)
+        self.timer = self.create_timer(0.08, self.publish_imu)
 
         ##### Sensor Setup #####
         GPIO.setmode(GPIO.BCM)
@@ -85,9 +85,9 @@ class IMUPublisher(Node):
 
     def get_imu_data(self):
         # Constants for filters
-        YAW_EMA_ALPHA = 0.7
+        YAW_EMA_ALPHA = 0.5
         ACCEL_WEIGHT = 0.0
-        G_DEADBAND = 0.52
+        G_DEADBAND = 1.0
         A_DEADBAND = 0.01
 
         # Get data from the mpu sensor
@@ -114,7 +114,7 @@ class IMUPublisher(Node):
         self.previous_yaw = yaw
         self.previous_gz = gz_filtered
 
-        orientation = {'roll':roll, 'pitch':pitch, 'yaw':yaw}
+        orientation = {'roll':self.deg_to_rad(roll), 'pitch':self.deg_to_rad(pitch), 'yaw':self.deg_to_rad(yaw)}
         self.prev_orien = orientation
 
         # Remove gravity from value assuming device is always upright
@@ -138,7 +138,11 @@ class IMUPublisher(Node):
         return roll, pitch
 
     def deadband(self, value, threshold):
-        return value if abs(value) > threshold else 0
+        return value if abs(value) > threshold else 0.0
+
+    def deg_to_rad(self, angle):
+        return angle * DEG_RAD_CONV_FACTOR
+
 
     def euler_to_quaternion(self, roll, pitch, yaw):
         qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
