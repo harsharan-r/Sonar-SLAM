@@ -4,17 +4,17 @@ A lightweight learning project that implements basic SLAM (Simultaneous Localiza
 ## Motivation
 The motivation for this project stems from three primary goals:
 
-1. Learning about I²C and sensor drivers:
+1. Educational exploration of robotics concepts:
 
-    To deepen my understanding of hardware interfacing, I implemented the drivers for the stepper motor and the 6-axis motion tracking device myself. This hands-on approach allowed me to gain practical experience with low-level sensor programming.
+    This project serves as a platform to study the fundamentals of filtering, sensor fusion, motion estimation, and SLAM algorithms in a hardware-constrained environment.
 
 2. Creating a sensor-agnostic SLAM system:
 
     The project aims to perform localization and mapping without relying on vehicle-specific internal data such as wheel speeds or odometry. A sensor-independent design makes it easier to retrofit existing vehicles with basic autonomous capabilities.
 
-3. Educational exploration of robotics concepts:
+3. Learning about I²C and sensor drivers:
 
-    This project serves as a platform to study the fundamentals of filtering, sensor fusion, motion estimation, and SLAM algorithms in a hardware-constrained environment.
+    To deepen my understanding of hardware interfacing, I implemented the drivers for the stepper motor and the 6-axis motion tracking device myself. This hands-on approach allowed me to gain practical experience with low-level sensor programming.
 
 ## Usage 
 
@@ -103,14 +103,14 @@ All sensor and motor drivers were implemented manually to gain experience with h
 - The MPU6050 communicates over I²C. The driver was based on Martijn's original Python library, with custom improvements to support calibration routines, filtered data access, and integration into the SLAM pipeline.
 
 ### Ultrasonic Data Filtering
-To reduce missed or invalid readings and improve measurement accuracy, outliers were removed using an interquartile range (IQR) filter applied over a sliding window of samples. After removing these outliers, a mean filter was applied to achieve accuracy within approximately 1 cm of the true value.
+To reduce missed or invalid readings and improve measurement accuracy, outliers were removed using an interquartile range (IQR) filter applied over a sliding window of samples. After removing these outliers, the average of the remaining samples was taken to achieve accuracy within approximately 1 cm of the true value.
 
 ### Orientation Estimation
 The MPU6050 outputs linear acceleration and angular velocity. The first step is estimating the sensor’s orientation so gravity can be removed. Once the gravity vector is isolated, the remaining acceleration can be expressed in the local inertial frame, improving integration and motion estimation.
 
-There are three common ways to estimate orientation: a Madgwick filter, a complementary filter, and a Kalman filter. A complementary filter was chosen because Madgwick performs best with a full 9-axis IMU, and a Kalman filter is far more computationally expensive. This method produced roll and pitch estimates with roughly 90% accuracy, though it cannot recover yaw.
+There are three common ways to estimate orientation: a Madgwick filter, a complementary filter, and a Kalman filter. A complementary filter was chosen because Madgwick performs best with a full 9-axis IMU, and a Kalman filter is far more computationally expensive. This method blends the gyro-integrated and gravity-based roll and pitch using a weighted average. It is computationally cheap and produced about 97 percent accuracy. The main limitation is yaw, since gravity provides no reference on that axis.
 
-Yaw estimation used only the gyroscope’s angular velocity, which contained noise causing integration drift. To address this, a median-based EMA filter was used along with a Zero-Velocity Update (ZVU), which zeros the angular rate when multiple consecutive readings fall below a defined threshold.
+Yaw estimation used only the gyroscope’s angular velocity, which contained noise causing integration drift. To address this, a Exponential Moving Average(EMA) filter was used along with a Zero-Velocity Update(ZVU), which zeros the angular rate when multiple consecutive readings fall below a defined threshold.
 
 Stationary Values (Angular Velocity and Yaw Graphs):
 
@@ -136,3 +136,25 @@ To evaluate accuracy, the device was rotated through three angles (30°, 60°, 9
 
 **Note:** After testing, the device maintained a consistent reading within one degree at each angle as shown in the top right graph.
 
+### Pose Estimation
+
+#### Pose Estimation from IMU data
+
+For pose estimation, a similar approach to orientation estimation was used. A static deadzone removed low-level acceleration noise, followed by a Zero-Velocity Update (ZVU) that set velocity to zero when acceleration remained below a threshold for several consecutive cycles. 
+
+| Filtered X Velocity |
+|:----------------------:|
+| ![](assets/figures/accel_filtering.png) |
+**Note:** After testing, repeated forward motion followed by stationary periods shows how the ZVU prevents drift.
+
+It should also be noted that this filter was tuned more aggressively for repeated start-and-stop motion, as the improvised lidar requires a significant amount of time to complete each scan.
+
+Once this is applied to the X and Y axis as for our scenario we aren't covering the Z axis we can estimate a rough pose of the robot
+
+Here is a test of the pose:
+| Pose estimation |
+|:----------------------:|
+| ![](assets/figures/IMU_pose_estimations.png) |
+**Note:** The pink dots represent the ground-truth path, while the blue dots show the estimated pose over time. Lighter points indicate progression along the path.
+
+This result highlights the significant drift that accumulates when relying solely on IMU data, demonstrating that an IMU alone is insufficient for long-term pose estimation.
