@@ -15,7 +15,8 @@ from geometry_msgs.msg import Point32
 from sensors.sensor_drivers.ultrasonic import Ultrasonic
 from sensors.sensor_drivers.stepper_motor import StepperMotor
 
-ULTRASONIC_SEN_OFFSET = 0.3745
+ULTRASONIC_SEN_OFFSET = 0.03745
+DEG_RAD_CONV_FACTOR = math.pi/180
 
 class SonarPublisher(Node):
 
@@ -28,8 +29,9 @@ class SonarPublisher(Node):
         GPIO.setwarnings(False)
     
         # Ultrasonic sensor
-        self.inline_sen = Ultrasonic(27,22)
-        self.perp_sen = Ultrasonic(26,19)
+        self.inline_sen = Ultrasonic(26,19)
+        self.perp_sen = Ultrasonic(27,22)
+        self.dist_max = {"inline": 0.4, "perp": 0.4}
         self.dist_array = []
         self.ultrasonic_sen_offset = ultrasonic_sen_offset
 
@@ -54,7 +56,7 @@ class SonarPublisher(Node):
 
         # Start motor at min angle position
         motor.move_to(min_angle, rotation_speed)
-        target_angle = min_angle
+        target_angle = max_angle
 
         # sweep between angles
         while not stop_event.is_set():
@@ -67,7 +69,7 @@ class SonarPublisher(Node):
             record_values.set()
 
             # delay a small amount a for smooth transition
-            sleep(0.12)
+            sleep(1.5)
 
     def record_distance_callback(self):
 
@@ -87,8 +89,13 @@ class SonarPublisher(Node):
             self.motor_sweep_thread.start()
 
         # Record ultrasonic data
-        self.dist_array.append([self.motor.position, self.inline_sen.filtered_distance() + self.ultrasonic_sen_offset])
-        self.dist_array.append([self.motor.position+90, self.perp_sen.filtered_distance() + self.ultrasonic_sen_offset])
+        inline_dist = self.inline_sen.filtered_distance()
+        # perp_dist = self.perp_sen.filtered_distance()
+
+        if inline_dist < self.dist_max['inline']:
+            self.dist_array.append([self.deg_to_rad(self.motor.position), inline_dist + self.ultrasonic_sen_offset])
+        # if perp_dist < self.dist_max['perp']:
+        #     self.dist_array.append([self.deg_to_rad(-(self.motor.position+90)), perp_dist + self.ultrasonic_sen_offset])
 
         if self.record_event.is_set():
             
@@ -109,32 +116,23 @@ class SonarPublisher(Node):
         # Initialise a point cloud message
         msg = PointCloud()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "sonar"
-
-        # Convert from polar to cartesian points
-        msg.points = [
-            Point32(x=r*math.cos(theta), y=r*math.sin(theta), z=0.0)
-            for r, theta in polar_array
-        ]
-        
-        # Publisher message
-        msg = PointCloud()
-        msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "sonar_link"
 
         # Convert from polar to cartesian points
         msg.points = [
-            Point32(x=r*math.cos(theta), y=r*math.sin(theta), z=0.0)
-            for r, theta in polar_array
+            Point32(x=r*math.sin(theta), y=r*math.cos(theta), z=0.0)
+            for theta, r in polar_array
         ]
         
         # Publisher message
         self.points_publisher_.publish(msg)
         self.get_logger().info(f"Published polar cloud with {len(msg.points)} points")
 
-def main(args=None):
+    def deg_to_rad(self,angle):
+        return angle*DEG_RAD_CONV_FACTOR
 
-    
+
+def main(args=None):
 
     rclpy.init(args=args)
     sonar_publisher = SonarPublisher(ULTRASONIC_SEN_OFFSET)
