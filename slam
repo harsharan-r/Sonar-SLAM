@@ -7,17 +7,31 @@ CMD=$1
 shift || true  # remove first argument, rest go in $@
 
 case "$CMD" in
-  build)
+  docker_build)
     docker build -f docker/Dockerfile -t ros-gpio .
+    ;;
+  build)
+    docker run -it --rm \
+    --device /dev/gpiomem \
+    --privileged \
+    -v $(pwd)/src:/app/src \
+    -v $(pwd)/assets/figures:/app/figures \
+    -w /app/src \
+    -p 8765:8765 \
+    ros-gpio \
+    bash -c "source /opt/ros/humble/setup.bash && colcon build"
     ;;
   run)
     docker run -it --rm \
     --device /dev/gpiomem \
     --privileged \
     -v $(pwd)/src:/app/src \
+    -v $(pwd)/assets/figures:/app/figures \
     -w /app/src \
     -p 8765:8765 \
-    ros-gpio
+    -e MPU_BUS_ADR=$MPU_BUS_ADR \
+    ros-gpio \
+    bash -c "source /opt/ros/humble/setup.bash && source install/setup.bash && ros2 launch slam_launch slam.launch.py"
     ;;
   foxglove)
     docker exec -it ros-gpio ros2 launch foxglove_bridge foxglove_bridge.launch.xml
