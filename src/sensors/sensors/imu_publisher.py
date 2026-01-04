@@ -18,7 +18,7 @@ class IMUPublisher(Node):
     def __init__(self):
         super().__init__('imu_publisher')
         self.imu_publisher_ = self.create_publisher(Imu, 'imu/data', 10)
-        self.timer = self.create_timer(0.08, self.publish_imu)
+        self.timer = self.create_timer(0.2, self.publish_imu)
 
         ##### Sensor Setup #####
         GPIO.setmode(GPIO.BCM)
@@ -85,9 +85,9 @@ class IMUPublisher(Node):
 
     def get_imu_data(self):
         # Constants for filters
-        YAW_EMA_ALPHA = 0.5
+        YAW_EMA_ALPHA = 0.3
         ACCEL_WEIGHT = 0.0
-        G_DEADBAND = 1.0
+        G_DEADBAND = 1.5
         A_DEADBAND = 0.01
 
         # Get data from the mpu sensor
