@@ -129,6 +129,8 @@ class Ultrasonic:
                 continue
             raw_dists.append(raw_distance)
  
+        if len(raw_dists) < 1:
+            return float('inf')
 
         # calculate percentile intervals to find outliers
         Q1 = np.percentile(raw_dists, 25)
@@ -158,23 +160,23 @@ if __name__ == "__main__":
     
     GPIO.setmode(GPIO.BCM)
 
-    # dist_sensor = Ultrasonic(26,19)
-    dist_sensor = Ultrasonic(27,22)
+    dist_sensor = Ultrasonic(26,19)
+    # dist_sensor = Ultrasonic(27,22)
 
     distance = dist_sensor.distance()
 
     try:
 
-        #while True:
-        #    distance = dist_sensor.distance()
-        #    print(f"Distance (m): {distance}")
-        #    sleep(0.5)
+        while True:
+           distance = dist_sensor.distance()
+           print(f"Distance (m): {distance}")
+           sleep(0.5)
 
 
-        for i in range(20):
-            start = perf_counter()
-            dist_sensor.filtered_distance()
-            print(f'{perf_counter() - start} seconds')
+        # for i in range(20):
+        #     start = perf_counter()
+        #     dist_sensor.filtered_distance()
+        #     print(f'{perf_counter() - start} seconds')
 
     finally:
         print("sensor cleanup")
