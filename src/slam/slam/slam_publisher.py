@@ -1,24 +1,24 @@
 import rclpy
 import time
+import math
+import random
+import numpy as np
 
+from copy import deepcopy
 from rclpy.node import Node
 
 from std_msgs.msg import String
 from sensor_msgs.msg import PointCloud, Imu
 from geometry_msgs.msg import Point32
 from geometry_msgs.msg import Pose
-from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
 from slam.ground_truth_marker import publish_ground_truth_path, publish_ground_truth_map
-import math
+from slam.particle import Particle
+from slam.cluster import Cluster
 
-import matplotlib.pyplot as plt
 
-import os
-style_path = os.path.join(os.path.dirname(__file__), "..", "figures","themes", "rose-pine.mplstyle")
-plt.style.use("/app/figures/themes/rose-pine.mplstyle")
 
 raw_accel = []
 raw_vel = []
@@ -36,38 +36,33 @@ class SlamPublisher(Node):
         self.ground_truth_path_publisher = self.create_publisher(MarkerArray, "ground_truth_path", 10)
         self.ground_truth_map_publisher = self.create_publisher(MarkerArray, "ground_truth_map", 10)
         self.imu_pose_estimation = self.create_publisher(MarkerArray, "imu_pose", 10)
+        self.sonar_scan_publisher = self.create_publisher(MarkerArray, "sonar_scan", 10)
 
         # publish ground truth markers
-        for i in range(20):
-            publish_ground_truth_path(1, "base_link", self.ground_truth_path_publisher, self.get_clock())
-            publish_ground_truth_map(1, "base_link", self.ground_truth_map_publisher, self.get_clock())
-            time.sleep(1)
+        # for i in range(20):
+        #     publish_ground_truth_path(1, "base_link", self.ground_truth_path_publisher, self.get_clock())
+        #     publish_ground_truth_map(1, "base_link", self.ground_truth_map_publisher, self.get_clock())
+        #     time.sleep(1)
 
-        
+        # -- SLAM --
+        self.num_of_particles = 50
         self.fused_pose = Pose()
+        self.particles = [Particle(self.fused_pose, 1.0/self.num_of_particles) for _ in range(self.num_of_particles)]
 
+        # --- Scan Processing
+        self.clusters=[]
+
+        # --- IMU Processing ---
         self.imu_pose = Pose()
         self.imu_pose_array = MarkerArray()
-        self.imu_filter_pose = Pose()
         self.imu_vel = {'x':0.0,'y':0.0,'z':0.0}
-        self.imu_filter_vel = {'x':0.0,'y':0.0,'z':0.0}
+        self.imu_prev_time = -1
 
         # IMU zero velocity update variables
         self.imu_ZVU_counter = {'x': 0.0, 'y': 0.0}
-        self.imu_ZVU_thres = 0.3
+        self.imu_ZVU_thres = 3.0
         self.imu_ZVU_counter_thres = 3
 
-        # story direction with 1 and -1
-        self.imu_direction = 0
-
-        # IMU EMA filter variables
-        self.imu_prev_accel = 0
-        self.imu_ema_alpha = 0.5
-
-        self.imu_prev_time = -1
-        self.ref = -1
-
-        self.sonar_pose = Pose()
 
         self.sonar_subscription_ = self.create_subscription(
             PointCloud,
@@ -82,6 +77,69 @@ class SlamPublisher(Node):
             10)
         
 
+    def sonar_callback(self, msg):
+
+        time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        
+        if self.imu_prev_time == -1:
+            # this will lead the first message to be ignored 
+            # but doesn't make a big difference due to the freq
+            self.imu_prev_time = time
+
+        dt = time - self.imu_prev_time
+        self.imu_prev_time = time
+
+        self.cluster_points(msg.points)
+
+        for cluster in self.clusters:
+
+            if cluster.length() <= 2:
+                continue
+
+            centroid = cluster.centroid()
+            covariance = cluster.covariance() 
+            
+            for particle in self.particles:
+                length = particle.update_map(cluster)
+                
+        # self.resample_particle_weight()
+        best_particle = self.get_best_particle()
+
+        sonar_scan = MarkerArray()
+        sonar_point = Pose()
+
+        sonar_point.orientation.x = 0.0
+        sonar_point.orientation.y = 0.0
+        sonar_point.orientation.z = 0.0
+        sonar_point.orientation.w = 1.0
+
+        colors = [
+            {'r': 0.0,        'g': 0.0,        'b': 1.0},        # blue
+            {'r': 0.0,        'g': 1.0,        'b': 0.0},        # green
+            {'r': 1.0,        'g': 1.0,        'b': 0.0},        # yellow
+            {'r': 1.0,        'g': 0.6471,     'b': 0.0},        # orange
+            {'r': 0.5020,     'g': 0.0,        'b': 0.5020},     # purple
+            {'r': 0.0,        'g': 1.0,        'b': 1.0},        # cyan
+            {'r': 1.0,        'g': 0.7529,     'b': 0.7961},     # pink
+            {'r': 0.5020,     'g': 0.5020,     'b': 0.5020},     # gray
+            {'r': 0.0,        'g': 0.0,        'b': 0.0},        # black
+        ]
+
+
+        for num, landmark in enumerate(best_particle.map):
+            for index, point in enumerate(landmark['points']):
+                sonar_point.position.x = point['x']
+                sonar_point.position.y = point['y']
+                sonar_point.position.z = 0.0
+                sonar_scan.markers.append(self.marker_from_pose(sonar_point, msg.header, len(sonar_scan.markers), colors[num%len(colors)], 0.005))
+
+        self.sonar_scan_publisher.publish(sonar_scan)
+
+        self.imu_pose.position.x = best_particle.pose['x']
+        self.imu_pose.position.y = best_particle.pose['y']
+
+        # self.get_logger().info(f"Local Pose {self.imu_pose.position.x}, {self.imu_pose.position.y}\n" f"Particle Pose {}, {best_particle.pose['y']}")
+
 
     def imu_callback(self, msg):
         time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
@@ -94,6 +152,54 @@ class SlamPublisher(Node):
         dt = time - self.imu_prev_time
         self.imu_prev_time = time
 
+        self.update_imu_raw_motion(msg, dt, True)
+        self.particle_motion_update(dt)
+
+    def particle_motion_update(self, dt):
+        x = self.imu_pose.position.x
+        y = self.imu_pose.position.y
+        quat = self.imu_pose.orientation
+
+        for p in self.particles:
+            p.motion_update(x, y, quat, dt)
+
+    def get_best_particle(self):
+        return max(self.particles, key=lambda p: p.weight)
+
+    def resample_particle_weight(self):
+        weights = [p.weight for p in self.particles]
+        
+        effective_sample_size = 1/sum(w**2 for w in weights)
+
+        if effective_sample_size < self.num_of_particles/2:
+            new_particles = random.choices(self.particles, weights=weights, k=self.num_of_particles)
+
+            # Optionally, deep-copy so they are independent
+            self.particles = [deepcopy(p) for p in new_particles]
+
+            # Reset all weights to uniform
+            for p in self.particles:
+                p.weight = 1.0 / self.num_of_particles
+
+    def cluster_points(self, points, dist_thresh = 0.1):
+        clusters = []
+
+        for pt in points:
+            added = False
+            for c in clusters:
+                centroid = c.centroid()
+                dx = pt.x - centroid[0]
+                dy = pt.y - centroid[1]
+                if (dx*dx + dy*dy)**0.5 < dist_thresh:
+                    c.add_point(pt)
+                    added = True
+                    break
+            if not added:
+                clusters.append(Cluster(pt))
+        
+        self.clusters = clusters
+
+    def update_imu_raw_motion(self, msg, dt, verbose=False):
         quat = msg.orientation
         roll, pitch, yaw  = self.quat_to_euler(quat.x, quat.y, quat.z, quat.w)
 
@@ -134,31 +240,24 @@ class SlamPublisher(Node):
         self.imu_pose.orientation = msg.orientation
 
         # LOGGING — placed at the end so you see final states
-        # self.get_logger().info(
-        #     f"\n--- IMU Debug ---\n"
-        #     f"Raw Accel: ax={ax_raw:.3f}, ay={ay_raw:.3f}\n"
-        #     f"Velocity:  vx={self.imu_vel['x']:.3f}, vy={self.imu_vel['y']:.3f}\n"
-        #     f"Yaw:  {yaw:.3f} rad\n"
-        #     f"Position:  x={self.imu_pose.position.x:.3f}, y={self.imu_pose.position.y:.3f}\n"
-        # )
-        
-        self.imu_pose_array.markers.append(self.marker_from_pose(self.imu_pose, msg.header, len(self.imu_pose_array.markers)))
-        self.imu_pose_estimation.publish(self.imu_pose_array)
+        if verbose:
+            self.get_logger().info(
+                f"\n--- IMU Debug ---\n"
+                f"Raw Accel: ax={ax_raw:.3f}, ay={ay_raw:.3f}\n"
+                f"Velocity:  vx={self.imu_vel['x']:.3f}, vy={self.imu_vel['y']:.3f}\n"
+                f"Yaw:  {yaw:.3f} rad\n"
+                f"Position:  x={self.imu_pose.position.x:.3f}, y={self.imu_pose.position.y:.3f}\n"
+            )
+            self.imu_pose_array.markers.append(self.marker_from_pose(self.imu_pose, msg.header, len(self.imu_pose_array.markers), {'r': 0, 'g': 0, 'b': 255}))
+            self.imu_pose_estimation.publish(self.imu_pose_array)
 
-
-    def sonar_callback(self, msg):
-        # self.get_logger().info(f"points: {point_data}")
-        self.get_logger().info("\n--- Point Cloud Message Recieved ---\n")
-
-        point_data = [[point.x, point.y, point.z] for point in msg.points]
-
-    def marker_from_pose(self, pose, header, id):
+    def marker_from_pose(self, pose, header, id, color, scale=0.01, m_type=2):
         marker = Marker()
         marker.header = header
 
         marker.ns = "Ground Truth Path"
         marker.id = id
-        marker.type = Marker.SPHERE
+        marker.type = m_type
         marker.action = Marker.ADD
 
         # print(pose)
@@ -171,16 +270,16 @@ class SlamPublisher(Node):
         marker.pose.orientation.z = pose.orientation.z
         marker.pose.orientation.w = pose.orientation.w
 
-        marker.scale.x = 0.01
-        marker.scale.y = 0.01
-        marker.scale.z = 0.01
+        marker.scale.x = scale
+        marker.scale.y = scale
+        marker.scale.z = scale
 
-        marker.color.r = id/1e3
-        marker.color.g = id/5e2
-        marker.color.b = 0.6
+        marker.color.r = color['r']
+        marker.color.g = color['g']
+        marker.color.b = color['b']
         marker.color.a = 1.0              # MUST be > 0
 
-        marker.lifetime.sec = 20           # auto-refresh
+        marker.lifetime.sec = 0           # auto-refresh
 
         return marker
 
