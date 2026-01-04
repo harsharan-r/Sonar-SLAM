@@ -392,27 +392,27 @@ if __name__ == "__main__":
     t_prev = time.perf_counter()
 
 
-    while(True):
-        if imu.data_ready():
-            a_val = imu.get_accel_data(calibrate=True)
-            g_val = imu.get_gyro_data(calibrate=True)
+    # while(True):
+    #     if imu.data_ready():
+    #         a_val = imu.get_accel_data(calibrate=True)
+    #         g_val = imu.get_gyro_data(calibrate=True)
 
-            a_roll = math.atan2(a_val['y'], -a_val['z'])
-            a_pitch = math.atan2(a_val['x'], -a_val['z'])
+    #         a_roll = math.atan2(a_val['y'], -a_val['z'])
+    #         a_pitch = math.atan2(a_val['x'], -a_val['z'])
 
-            t_now = time.perf_counter()
-            dt = t_now - t_prev
-            t_prev = t_now
+    #         t_now = time.perf_counter()
+    #         dt = t_now - t_prev
+    #         t_prev = t_now
 
-            alpha = 0.97
-            yaw = alpha * (yaw + (g_val["z"])*dt) + (1-alpha)*previous_yaw
+    #         alpha = 0.97
+    #         yaw = alpha * (yaw + (g_val["z"])*dt) + (1-alpha)*previous_yaw
 
-            previous_yaw = yaw
+    #         previous_yaw = yaw
 
-            # print(g_val['z'])
-            print(f"Roll: {a_roll}, Pitch: {a_pitch}, Yaw {yaw}")
+    #         # print(g_val['z'])
+    #         print(f"Roll: {a_roll}, Pitch: {a_pitch}, Yaw {yaw}")
 
-        time.sleep(0.1)
+    #     time.sleep(0.1)
 
     #print(imu.get_accel_data(calibrate=True))
     #print(imu.read_accel_range())
@@ -428,16 +428,16 @@ if __name__ == "__main__":
     #print(imu.read_gyro_range())
     #print(imu.get_gyro_data(True))
 
-    # try:
-    #     while(True):
-    #         a_val = imu.get_accel_data(calibrate=True)
-    #         g_val = imu.get_gyro_data(calibrate=True)
-    #         print(f"Accel Values: x: {a_val['x']}, y: {a_val['y']}, z: {a_val['z']}, Gyro Values: x: {g_val['x']}, y: {g_val['y']}, z: {g_val['z']}")    
+    try:
+        while(True):
+            a_val = imu.get_accel_data(calibrate=True)
+            g_val = imu.get_gyro_data(calibrate=True)
+            print(f"Accel Values: x: {a_val['x']}, y: {a_val['y']}, z: {a_val['z']}, Gyro Values: x: {g_val['x']}, y: {g_val['y']}, z: {g_val['z']}")    
 
-    #         time.sleep(0.1)
+            time.sleep(0.1)
 
-    # finally:
-    #     print("Process has been interuppted")
+    finally:
+        print("Process has been interuppted")
 
     
                 
